@@ -1,91 +1,108 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const SYSTEM_PROMPT = `You are the world's most advanced trading analyst. Your knowledge synthesizes every major trading methodology in history:
+const METHOD_KNOWLEDGE: Record<string, string> = {
+  Wyckoff: `WYCKOFF METHOD (Richard Wyckoff):
+- Composite Man theory — institutional accumulation/distribution
+- Four phases: Accumulation (Phase A-E), Markup, Distribution, Markdown
+- Key events: Spring, Upthrust, Sign of Strength (SOS), Sign of Weakness (SOW)
+- Volume analysis: effort vs result, climax volume, no-demand bars`,
 
-MARKET STRUCTURE & CYCLES:
-- Wyckoff Method: Composite Man, Accumulation/Markup/Distribution/Markdown phases, Springs, Upthrusts
-- Elliott Wave Theory: impulse waves (1-5), corrective waves (A-B-C), wave degrees
-- Dow Theory: trend confirmation, higher highs/lows, lower highs/lows
-- Stan Weinstein: Stage 1 (base), Stage 2 (uptrend), Stage 3 (top), Stage 4 (downtrend)
+  ICT: `ICT — INNER CIRCLE TRADER (Michael Huddleston):
+- Order Blocks (OB): last bearish candle before bullish impulse (bull OB), vice versa
+- Fair Value Gaps (FVG) / Imbalances: three-candle patterns with price inefficiency
+- Liquidity: buy-side (BSL above highs), sell-side (SSL below lows)
+- Optimal Trade Entry (OTE): 62–79% Fibonacci retracement of a swing
+- Breaker Blocks, Mitigation Blocks, Market Structure Shifts (MSS)
+- Sessions: London (2–5 AM EST), New York (8:30 AM–11 AM EST), Asian range`,
 
-PRICE ACTION & SMART MONEY:
-- Al Brooks: price action bars, trend bars, doji, trading ranges, breakouts, pullbacks
-- ICT (Inner Circle Trader): order blocks, fair value gaps (FVG), liquidity sweeps, breaker blocks, optimal trade entry (OTE)
-- Smart Money Concepts (SMC): Break of Structure (BOS), Change of Character (ChoCh), premium/discount zones
-- Bob Volman: tight price action, squeeze setups
+  "Elliott Wave": `ELLIOTT WAVE THEORY (Ralph Elliott):
+- Impulse waves: 5-wave structure (1-2-3-4-5), Wave 3 is never shortest
+- Corrective waves: A-B-C (zigzag, flat, triangle)
+- Fibonacci relationships between waves (1.618, 2.618 extensions; 0.382, 0.618 retracements)
+- Degree labeling: Grand Supercycle → Supercycle → Cycle → Primary → Intermediate
+- Common patterns: Leading/Ending Diagonal, Double/Triple Zigzag`,
 
-CHART PATTERNS (Thomas Bulkowski — Encyclopedia of Chart Patterns):
-- Reversal: Head & Shoulders, Double/Triple Top/Bottom, Rounding Top/Bottom, Diamond
-- Continuation: Bull/Bear Flag, Pennant, Wedge, Cup & Handle, Ascending/Descending Triangle
-- Breakout patterns with measured move targets
+  Fibonacci: `FIBONACCI LEVELS:
+- Retracements: 23.6%, 38.2%, 50% (not true Fib but widely used), 61.8% (golden ratio), 78.6%
+- Extensions: 127.2%, 161.8%, 261.8%, 423.6%
+- Confluence zones: where multiple Fib levels + S/R cluster
+- Fib Time Zones for timing reversals
+- Golden Pocket: 61.8%–65% retracement (ICT OTE zone)`,
 
-CANDLESTICK SIGNALS (Steve Nison — Japanese Candlestick Charting Techniques):
-- Single: Hammer, Shooting Star, Doji, Marubozu, Spinning Top
-- Two-bar: Bullish/Bearish Engulfing, Harami, Piercing Line, Dark Cloud Cover
-- Three-bar: Morning/Evening Star, Three White Soldiers/Black Crows
+  "Volume Analysis": `VOLUME ANALYSIS:
+- Wyckoff: climax volume (selling/buying climax), effort vs result divergence
+- Volume Spread Analysis (VSA): wide-spread up bar on high volume = strength
+- On-Balance Volume (OBV): trend confirmation/divergence
+- Volume Profile: Point of Control (POC), Value Area High/Low (VAH/VAL), HVN/LVN
+- No-supply / no-demand bars: narrow spread + low volume = weak move`,
 
-TECHNICAL INDICATORS (if visible in chart):
-- RSI (Wilder): divergence, overbought/oversold, hidden divergence
-- MACD (Appel/Murphy): crossovers, histogram momentum shifts, divergence
-- Bollinger Bands (Bollinger): squeezes, band rides, mean reversion
-- Volume: Wyckoff climax volume, effort vs result
+  "Price Action": `PRICE ACTION (Al Brooks, Lance Beggs, Bob Volman):
+- Trend: measured move, channel, tight bull/bear channel = strong trend
+- Trading Ranges: magnets at midpoint and extremes, failed breakouts
+- Reversal signals: final flag, wedge, climax bar, exhaustion gap
+- Bar analysis: trend bars, dojo bars, outside bars, inside bars
+- Key concept: "Always in Long/Short" — institutional commitment
+- Candlestick patterns (Nison): Hammer, Engulfing, Pin Bar, Doji, Morning/Evening Star`,
+};
 
-FIBONACCI & GEOMETRY:
-- Retracement levels: 23.6%, 38.2%, 50%, 61.8% (golden ratio), 78.6%
-- Extension targets: 127.2%, 161.8%, 261.8%
-- Confluence zones where multiple levels cluster
+function buildSystemPrompt(methods: string[]): string {
+  const selectedMethods = methods.length > 0 ? methods : Object.keys(METHOD_KNOWLEDGE);
+  const methodBlock = selectedMethods
+    .map((m) => METHOD_KNOWLEDGE[m] ?? "")
+    .filter(Boolean)
+    .join("\n\n");
 
-RISK MANAGEMENT:
-- Van Tharp: expectancy, position sizing, R-multiples
-- Alexander Elder: 2% rule, maximum portfolio heat
-- Mark Douglas: probability mindset, always define risk before entry
+  return `You are a professional trading analyst with mastery of every major methodology. Apply ONLY the methods listed below to analyze the provided chart.
 
-Analyze the provided chart image thoroughly. Identify: the trading pair (from ticker/title), timeframe (from candle intervals/labels), current price, full market structure, cycle phase, patterns, key levels, and any visible indicator readings.
+${methodBlock}
+
+ADDITIONAL FRAMEWORKS (always apply):
+- Dow Theory: trend structure, HH/HL (bull) vs LH/LL (bear), non-confirmation signals
+- Support/Resistance: swing highs/lows, psychological levels, prior S/R flip zones
+- Chart Patterns (Bulkowski): H&S, Double Top/Bottom, Flags, Wedges, Triangles, Cup & Handle
+- Risk Management (Van Tharp): R-multiples, expectancy; Mark Douglas: define risk before entry
+
+Analyze the chart image provided. Detect the trading pair and timeframe from visible labels. Assess market structure, current phase, key price levels, confluences, and produce a complete trade setup.
 
 Return ONLY a valid JSON object — no markdown, no code blocks, no extra text:
 {
-  "pair": "detected ticker e.g. BTCUSDT or UNKNOWN",
-  "timeframe": "detected timeframe e.g. 4H, 1D, 15m or UNKNOWN",
-  "direction": "LONG" or "SHORT" or "NO TRADE",
-  "entry": {
-    "price": number or null,
-    "zone": "e.g. 42200-42800" or null,
-    "type": "market" or "limit" or "breakout"
-  },
-  "stopLoss": {
-    "price": number or null,
-    "reason": "brief structural reason"
-  },
-  "takeProfit": [
-    { "price": number, "rr": "1:X", "label": "TP1 label" },
-    { "price": number, "rr": "1:X", "label": "TP2 label" }
+  "pair": "e.g. BTCUSDT or UNKNOWN",
+  "timeframe": "e.g. 4H or UNKNOWN",
+  "overall_bias": "bullish" or "bearish" or "neutral",
+  "confidence": integer 0-100,
+  "wyckoff_phase": "description or null",
+  "ict_concepts": ["array of detected ICT concepts or empty array"],
+  "key_levels": [
+    { "price": number, "label": "descriptive label", "type": "support" or "resistance" or "neutral" }
   ],
-  "riskReward": number or null,
-  "confidence": number 0-100,
-  "marketCycle": "accumulation" or "markup" or "distribution" or "markdown" or "unknown",
-  "trend": "bullish" or "bearish" or "sideways",
-  "sentiment": "bullish" or "bearish" or "neutral",
-  "pattern": "primary pattern name or null",
-  "candlestickSignal": "candle pattern name or null",
-  "keyLevels": {
-    "support": [up to 3 numbers],
-    "resistance": [up to 3 numbers]
-  },
-  "techniquesApplied": ["3-5 methodology strings e.g. Wyckoff Spring, ICT Order Block, Fibonacci 61.8%"],
-  "analysis": "3-5 sentences: market structure, why this setup has edge, key confluences, what to watch",
-  "invalidation": "specific price/condition that kills this setup",
-  "riskNote": "one sentence on sizing and managing this trade"
+  "entry_zone": { "low": number or null, "high": number or null, "notes": "reason" } or null,
+  "stop_loss": { "price": number or null, "reason": "structural reason" } or null,
+  "take_profit": [
+    { "price": number, "rr": "1:X", "label": "target description" }
+  ],
+  "confluences": ["array of confluence strings, be specific"],
+  "invalidation": "specific price action or candle close that kills the setup",
+  "summary": "3-5 sentences covering market context, setup rationale, and key things to watch"
 }
 
 Rules:
-- All prices must come from what is visible in the chart — never invent numbers
-- takeProfit: provide 2 targets when possible (partial exit + runner)
-- confidence: 50=weak, 65=moderate, 78=good confluence, 85+=very high conviction
-- If no setup: direction = "NO TRADE", entry/SL/TP = null`;
+- All prices must come from visible chart data only
+- key_levels: list up to 5 significant levels
+- take_profit: provide 2 targets when possible (partial + runner)
+- confidence: 50=weak, 65=moderate, 78=good confluence, 88+=very high conviction
+- If no clear setup exists: overall_bias="neutral", entry_zone=null, stop_loss=null, take_profit=[]
+- Be specific and quantitative in every field`;
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { imageBase64, mimeType } = await req.json();
+    const body = await req.json();
+    const { imageBase64, mimeType, context, methods } = body as {
+      imageBase64: string;
+      mimeType: string;
+      context?: { pair: string; timeframe: string; session: string; bias: string };
+      methods?: string[];
+    };
 
     if (!imageBase64 || !mimeType) {
       return NextResponse.json({ error: "Missing image data" }, { status: 400 });
@@ -99,6 +116,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const systemPrompt = buildSystemPrompt(methods ?? []);
+
+    // Build user message with context
+    const contextLines: string[] = [];
+    if (context?.pair) contextLines.push(`Trading Pair: ${context.pair}`);
+    if (context?.timeframe) contextLines.push(`Timeframe: ${context.timeframe}`);
+    if (context?.session) contextLines.push(`Current Session: ${context.session}`);
+    if (context?.bias && context.bias !== "No Bias") contextLines.push(`Analyst Bias: ${context.bias}`);
+
+    const userText =
+      contextLines.length > 0
+        ? `Context provided by analyst:\n${contextLines.join("\n")}\n\nAnalyze this chart and return the JSON setup.`
+        : "Analyze this trading chart and return the JSON setup.";
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -108,8 +139,8 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 2000,
-        system: SYSTEM_PROMPT,
+        max_tokens: 2500,
+        system: systemPrompt,
         messages: [
           {
             role: "user",
@@ -118,10 +149,7 @@ export async function POST(req: NextRequest) {
                 type: "image",
                 source: { type: "base64", media_type: mimeType, data: imageBase64 },
               },
-              {
-                type: "text",
-                text: "Analyze this trading chart. Apply every relevant methodology you know. Return the JSON trade setup.",
-              },
+              { type: "text", text: userText },
             ],
           },
         ],
